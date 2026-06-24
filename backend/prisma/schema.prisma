@@ -1,0 +1,339 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  USER
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PackageStatus {
+  ACTIVE
+  INACTIVE
+  DRAFT
+}
+
+enum PackageCategory {
+  BOAT_TOUR
+  ADVENTURE
+  FAMILY
+  HONEYMOON
+  GROUP
+  CORPORATE
+  WEEKEND
+  OVERNIGHT
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  BOAT_STATUS_UPDATE
+  SCHEDULE_CHANGE
+  CANCELLATION
+  REMINDER
+  GENERAL
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  BOTH
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  phone           String?   @unique
+  name            String
+  passwordHash    String?
+  googleId        String?   @unique
+  avatar          String?
+  aadhaarNumber   String?
+  gender          String?
+  dateOfBirth     DateTime?
+  address         String?
+  city            String?
+  state           String?
+  pincode         String?
+  role            Role      @default(USER)
+  isEmailVerified Boolean   @default(false)
+  isPhoneVerified Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  refreshToken    String?
+  lastLogin       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  bookings       Booking[]
+  reviews        Review[]
+  notifications  Notification[]
+  savedPackages  SavedPackage[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model Package {
+  id                 String          @id @default(uuid())
+  name               String
+  slug               String          @unique
+  category           PackageCategory
+  description        String
+  shortDescription   String
+  duration           String
+  durationDays       Int
+  durationNights     Int
+  startingPoint      String
+  endingPoint        String
+  price              Decimal         @db.Decimal(10, 2)
+  discountedPrice    Decimal?        @db.Decimal(10, 2)
+  capacity           Int
+  availableSeats     Int
+  itinerary          Json
+  includedServices   String[]
+  excludedServices   String[]
+  cancellationPolicy String
+  highlights         String[]
+  meetingPoint       String?
+  meetingPointLat    Float?
+  meetingPointLng    Float?
+  status             PackageStatus   @default(DRAFT)
+  isFeatured         Boolean         @default(false)
+  totalRatings       Int             @default(0)
+  avgRating          Float           @default(0)
+  totalBookings      Int             @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  images         PackageImage[]
+  bookings       Booking[]
+  reviews        Review[]
+  savedPackages  SavedPackage[]
+
+  @@map("packages")
+}
+
+model PackageImage {
+  id        String  @id @default(uuid())
+  packageId String
+  url       String
+  key       String
+  altText   String?
+  isPrimary Boolean @default(false)
+  order     Int     @default(0)
+  createdAt DateTime @default(now())
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@map("package_images")
+}
+
+model Booking {
+  id                String        @id @default(uuid())
+  bookingNumber     String        @unique
+  userId            String
+  packageId         String
+  bookingDate       DateTime      @default(now())
+  travelDate        DateTime
+  numberOfPersons   Int
+  totalAmount       Decimal       @db.Decimal(10, 2)
+  discountAmount    Decimal       @default(0) @db.Decimal(10, 2)
+  taxAmount         Decimal       @default(0) @db.Decimal(10, 2)
+  finalAmount       Decimal       @db.Decimal(10, 2)
+  status            BookingStatus @default(PENDING)
+  specialRequests   String?
+  qrCode            String?
+  ticketUrl         String?
+  invoiceUrl        String?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  refundAmount      Decimal?      @db.Decimal(10, 2)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id])
+  package     Package            @relation(fields: [packageId], references: [id])
+  passengers  BookingPassenger[]
+  payment     Payment?
+  review      Review?
+
+  @@map("bookings")
+}
+
+model BookingPassenger {
+  id              String  @id @default(uuid())
+  bookingId       String
+  name            String
+  age             Int
+  gender          String
+  aadhaarNumber   String?
+  emergencyContact String?
+  createdAt       DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("booking_passengers")
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  bookingId         String        @unique
+  razorpayOrderId   String        @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @default("INR")
+  status            PaymentStatus @default(PENDING)
+  method            String?
+  bank              String?
+  wallet            String?
+  vpa               String?
+  description       String?
+  refundId          String?
+  refundAmount      Decimal?      @db.Decimal(10, 2)
+  refundStatus      String?
+  refundedAt        DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
+model Review {
+  id          String       @id @default(uuid())
+  userId      String
+  packageId   String
+  bookingId   String?      @unique
+  rating      Int
+  title       String
+  content     String
+  photos      String[]
+  status      ReviewStatus @default(PENDING)
+  adminNote   String?
+  isVerified  Boolean      @default(false)
+  helpfulCount Int         @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  package Package @relation(fields: [packageId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@map("reviews")
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  type      NotificationType
+  channel   NotificationChannel @default(BOTH)
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean             @default(false)
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model SavedPackage {
+  id        String   @id @default(uuid())
+  userId    String
+  packageId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  package Package @relation(fields: [packageId], references: [id])
+
+  @@unique([userId, packageId])
+  @@map("saved_packages")
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  isRead    Boolean  @default(false)
+  repliedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
+}
+
+model NewsletterSubscriber {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  name        String?
+  isActive    Boolean  @default(true)
+  subscribedAt DateTime @default(now())
+  unsubscribedAt DateTime?
+
+  @@map("newsletter_subscribers")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entity     String
+  entityId   String?
+  oldData    Json?
+  newData    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model Report {
+  id         String   @id @default(uuid())
+  type       String
+  period     String
+  data       Json
+  generatedBy String?
+  fileUrl    String?
+  createdAt  DateTime @default(now())
+
+  @@map("reports")
+}
