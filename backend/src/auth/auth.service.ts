@@ -48,7 +48,7 @@ export class AuthService {
 
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
     const tokens = await this.generateTokens(user.id, user.email, user.role);
-    const { passwordHash, refreshToken, ...safeUser } = user;
+    const { passwordHash, refreshToken: _rt, ...safeUser } = user;
     return { user: safeUser, ...tokens };
   }
 

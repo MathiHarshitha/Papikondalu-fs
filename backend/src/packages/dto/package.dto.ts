@@ -16,7 +16,7 @@ export class CreatePackageDto {
   @ApiProperty() @IsNumber() @Min(0) price: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() discountedPrice?: number;
   @ApiProperty() @IsNumber() @Min(1) capacity: number;
-  @ApiProperty() itinerary: any;
+  @ApiProperty() @IsArray() itinerary: any[];
   @ApiProperty({ type: [String] }) @IsArray() includedServices: string[];
   @ApiProperty({ type: [String] }) @IsArray() excludedServices: string[];
   @ApiProperty() @IsString() cancellationPolicy: string;

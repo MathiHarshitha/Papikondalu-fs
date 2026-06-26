@@ -1,10 +1,12 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
-  private client: Redis;
+  private client: Redis | null = null;
+  private connected = false;
+  private readonly logger = new Logger(RedisService.name);
 
   constructor(private configService: ConfigService) {}
 
@@ -13,35 +15,66 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       host: this.configService.get('REDIS_HOST', 'localhost'),
       port: this.configService.get<number>('REDIS_PORT', 6379),
       password: this.configService.get('REDIS_PASSWORD') || undefined,
-      retryStrategy: (times) => Math.min(times * 50, 2000),
+      lazyConnect: true,
+      retryStrategy: (times) => {
+        if (times > 3) return null; // stop retrying after 3 attempts
+        return Math.min(times * 200, 1000);
+      },
+      enableOfflineQueue: false,
     });
-    this.client.on('error', (err) => console.error('Redis error:', err));
-    this.client.on('connect', () => console.log('Redis connected'));
+
+    this.client.on('connect', () => {
+      this.connected = true;
+      this.logger.log('Redis connected');
+    });
+
+    this.client.on('error', () => {
+      // suppress repeated error logs — just mark as disconnected
+      this.connected = false;
+    });
+
+    this.client.connect().then(() => {
+      this.connected = true;
+    }).catch(() => {
+      this.connected = false;
+      this.logger.warn('Redis not available — running without cache');
+    });
   }
 
   async onModuleDestroy() {
-    await this.client.quit();
-  }
-
-  async get(key: string): Promise<string | null> {
-    return this.client.get(key);
-  }
-
-  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
-    if (ttlSeconds) {
-      await this.client.set(key, value, 'EX', ttlSeconds);
-    } else {
-      await this.client.set(key, value);
+    if (this.client && this.connected) {
+      await this.client.quit().catch(() => {});
     }
   }
 
+  private ok(): boolean {
+    return this.connected && this.client !== null;
+  }
+
+  async get(key: string): Promise<string | null> {
+    if (!this.ok()) return null;
+    try { return await this.client!.get(key); } catch { return null; }
+  }
+
+  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
+    if (!this.ok()) return;
+    try {
+      if (ttlSeconds) {
+        await this.client!.set(key, value, 'EX', ttlSeconds);
+      } else {
+        await this.client!.set(key, value);
+      }
+    } catch { /* ignore */ }
+  }
+
   async del(key: string): Promise<void> {
-    await this.client.del(key);
+    if (!this.ok()) return;
+    try { await this.client!.del(key); } catch { /* ignore */ }
   }
 
   async exists(key: string): Promise<boolean> {
-    const result = await this.client.exists(key);
-    return result === 1;
+    if (!this.ok()) return false;
+    try { return (await this.client!.exists(key)) === 1; } catch { return false; }
   }
 
   async setJson(key: string, value: any, ttlSeconds?: number): Promise<void> {
@@ -54,7 +87,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async invalidatePattern(pattern: string): Promise<void> {
-    const keys = await this.client.keys(pattern);
-    if (keys.length > 0) await this.client.del(...keys);
+    if (!this.ok()) return;
+    try {
+      const keys = await this.client!.keys(pattern);
+      if (keys.length > 0) await this.client!.del(...keys);
+    } catch { /* ignore */ }
   }
 }

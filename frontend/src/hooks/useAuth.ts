@@ -16,7 +16,7 @@ export function useLogin() {
       toast.success('Welcome back!');
       router.push(data.user.role === 'USER' ? '/dashboard' : '/admin/dashboard');
     },
-    onError: () => toast.error('Invalid credentials'),
+    onError: (e: any) => toast.error(e?.response?.data?.message || e?.message || 'Login failed'),
   });
 }
 

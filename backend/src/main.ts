@@ -12,13 +12,17 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Security
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: false,
+  }));
 
   // CORS
   app.enableCors({
     origin: [
       configService.get('FRONTEND_URL', 'http://localhost:3000'),
       'http://localhost:3000',
+      'http://localhost:3002',
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
