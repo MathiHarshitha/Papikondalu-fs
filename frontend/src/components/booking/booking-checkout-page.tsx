@@ -73,8 +73,6 @@ function buildRazorpayDisplay(method: PaymentMethod) {
       return { blocks: { card: { name: 'Pay via Card', instruments: [{ method: 'card' }] } }, sequence: ['block.card'], preferences: { show_default_blocks: false } };
     case 'netbanking':
       return { blocks: { nb: { name: 'Net Banking', instruments: [{ method: 'netbanking' }] } }, sequence: ['block.nb'], preferences: { show_default_blocks: false } };
-    case 'wallet':
-      return { blocks: { w: { name: 'Wallets', instruments: [{ method: 'wallet' }] } }, sequence: ['block.w'], preferences: { show_default_blocks: false } };
   }
 }
 
@@ -379,8 +377,8 @@ export function BookingCheckoutPage({ packageId }: { packageId: string }) {
                 <p>✓ Instant confirmation</p>
                 <p>✓ Free cancellation (48h)</p>
                 <p>✓ UPI · GPay · PhonePe · Paytm</p>
-                <p>✓ Net Banking · Debit/Credit Card</p>
-                <p>✓ Wallets · All banks supported</p>
+                <p>✓ Net Banking · All banks supported</p>
+                <p>✓ Debit Card · Credit Card</p>
               </div>
             </div>
           </div>
